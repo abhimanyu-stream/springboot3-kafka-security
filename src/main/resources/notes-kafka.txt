@@ -1,0 +1,412 @@
+For Spring Boot applications, classpath:keys/keystore.p12 is the correct format even on Windows. Spring uses forward slashes / for classpath resources regardless of the operating system.
+The classpath: prefix tells Spring to look for resources relative to the classpath root, and the standard Java convention is to use forward slashes for resource paths even on Windows systems.
+Two important points:
+When using classpath: resources, always use forward slashes / not backslashes, even on Windows
+The double backslash format that appears elsewhere in your properties file (classpath:keys\\keystore.p12) is less standard but also works because Java handles path conversion
+If you want to use an absolute file path on Windows rather than a classpath resource, you would use:
+
+package com.java17.kafka.security.service;
+
+import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.common.acl.*;
+import org.apache.kafka.common.resource.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+
+import com.java17.kafka.security.config.KafkaAclManager;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+
+@Service
+public class KafkaAclService {
+
+    private KafkaAclManager aclManager;
+    
+    @Value("${spring.kafka.bootstrap-servers}")
+    private String bootstrapServers;
+    
+    @Value("${spring.kafka.security.protocol}")
+    private String securityProtocol;
+    
+    @Value("${spring.kafka.ssl.trust-store-location}")
+    private String trustStoreLocation;
+    
+    @Value("${spring.kafka.ssl.trust-store-password}")
+    private String trustStorePassword;
+    
+    @Value("${spring.kafka.properties.sasl.mechanism}")
+    private String saslMechanism;
+    
+    @Value("${kafka.admin.username}")
+    private String adminUsername;
+    
+    @Value("${kafka.admin.password}")
+    private String adminPassword;
+    
+    @Autowired
+    private ResourceLoader resourceLoader;
+    
+    @PostConstruct
+    public void init() throws IOException {
+        // Convert Spring resource to actual file path
+        Resource resource = resourceLoader.getResource(trustStoreLocation);
+        File trustStoreFile = resource.getFile();
+        String absolutePath = trustStoreFile.getAbsolutePath();
+        /**For bundled resources in JAR files, you may need to copy the resource to a temporary file first:
+         * 
+         *  File tempFile = File.createTempFile("keystore", ".p12");
+        tempFile.deleteOnExit();
+        try (InputStream is = resource.getInputStream();
+             FileOutputStream fos = new FileOutputStream(tempFile)) {
+            IOUtils.copy(is, fos);
+        }
+        String absolutePath = tempFile.getAbsolutePath();
+         */
+        
+        Properties props = new Properties();
+        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(AdminClientConfig.SECURITY_PROTOCOL_CONFIG, securityProtocol);
+        props.put("ssl.truststore.location", absolutePath); // Use actual file path
+        props.put("ssl.truststore.password", trustStorePassword);
+        props.put("sasl.mechanism", saslMechanism);
+        props.put("sasl.jaas.config", 
+                "org.apache.kafka.common.security.scram.ScramLoginModule required " +
+                "username=\"" + adminUsername + "\" password=\"" + adminPassword + "\";");
+        
+        aclManager = new KafkaAclManager(props);
+        /**
+         * 
+         * 
+         * 
+         * // Verify admin permissions
+        if (!verifyAdminPermissions()) {
+            throw new RuntimeException("Kafka admin user does not have the required ALTER --cluster permission");
+        }
+        /**
+         *  // Add a flag to control permission checking
+    boolean skipPermissionCheck = true; // Set from application.properties
+    
+    if (!skipPermissionCheck && !verifyAdminPermissions()) {
+        System.out.println("Warning: Admin user lacks ALTER --cluster permission");
+        // Continue anyway instead of throwing exception
+    }
+         */
+         
+        
+        try {
+            // Try to bootstrap admin permissions if ACLs are enabled
+            bootstrapAdminPermissions();
+        } catch (Exception e) {
+            System.out.println("Could not bootstrap admin permissions: " + e.getMessage());
+            // Continue anyway
+        }
+    }
+    
+    private void bootstrapAdminPermissions() {
+        try {
+            // Check if Kafka supports security
+            boolean securityEnabled = true;
+            
+            try {
+                AdminClient adminClient = AdminClient.create(createAdminConfig());
+                adminClient.describeCluster().nodes().get();
+                adminClient.close();
+            } catch (Exception e) {
+                if (e.getCause() instanceof org.apache.kafka.common.errors.SecurityDisabledException) {
+                    securityEnabled = false;
+                }
+            }
+            
+            // If security is enabled but we don't have admin permissions,
+            // use broker's superuser credentials to grant them
+            if (securityEnabled && !verifyAdminPermissions()) {
+                System.out.println("Creating admin permissions for " + adminUsername);
+                // This assumes you've configured a broker superuser elsewhere
+                createAdminAcl(adminUsername);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Verify that the configured admin user has the necessary permissions
+     * by attempting to describe cluster ACLs
+     */
+    private boolean verifyAdminPermissions() {
+        try {
+            // Try to describe cluster ACLs - this will fail if we don't have ALTER --cluster permission
+            AdminClient adminClient = AdminClient.create(createAdminConfig());
+            adminClient.describeAcls(AclBindingFilter.ANY).values().get();
+            adminClient.close();
+            return true;
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof org.apache.kafka.common.errors.SecurityDisabledException) {
+                // ACLs are not enabled, so no permission is required
+                return true;
+            }
+            if (e.getCause() instanceof org.apache.kafka.common.errors.ClusterAuthorizationException) {
+                return false;
+            }
+            e.printStackTrace();
+            return false;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    /**
+     * Create producer ACL for a specified user and topic
+     */
+    public void createProducerAcl(String username, String topicName) {
+        try {
+            aclManager.createProducerAcl(username, topicName);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create producer ACL: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Create consumer ACL for a specified user, topic and consumer group
+     */
+    public void createConsumerAcl(String username, String topicName, String groupId) {
+        try {
+            aclManager.createConsumerAcl(username, topicName, groupId);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create consumer ACL: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Create admin ACL for a specified user
+     * This grants ALTER --cluster permission needed to manage ACLs
+     */
+    public void createAdminAcl(String username) throws ExecutionException, InterruptedException {
+        ResourcePattern resourcePattern = new ResourcePattern(
+                ResourceType.CLUSTER,
+                "kafka-cluster",  // The name doesn't matter for CLUSTER type
+                PatternType.LITERAL
+        );
+
+        AccessControlEntry entry = new AccessControlEntry(
+                "User:" + username,
+                "*",
+                AclOperation.ALTER,
+                AclPermissionType.ALLOW
+        );
+
+        AclBinding aclBinding = new AclBinding(resourcePattern, entry);
+        
+        AdminClient adminClient = AdminClient.create(createAdminConfig());
+        CreateAclsResult result = adminClient.createAcls(Collections.singletonList(aclBinding));
+        result.all().get();
+        adminClient.close();
+        
+        System.out.println("Admin ACL created for " + username + " with ALTER --cluster permission");
+    }
+    
+    private Properties createAdminConfig() {
+        Properties props = new Properties();
+        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(AdminClientConfig.SECURITY_PROTOCOL_CONFIG, securityProtocol);
+        props.put("ssl.truststore.location", trustStoreLocation);
+        props.put("ssl.truststore.password", trustStorePassword);
+        props.put("sasl.mechanism", saslMechanism);
+        props.put("sasl.jaas.config", 
+                "org.apache.kafka.common.security.scram.ScramLoginModule required " +
+                "username=\"" + adminUsername + "\" password=\"" + adminPassword + "\";");
+        return props;
+    }
+    
+    @PreDestroy
+    public void cleanup() {
+        if (aclManager != null) {
+            aclManager.close();
+        }
+    }
+}
+
+/**
+To apply these changes:
+Update your application.properties with the superuser settings
+Modify the server.properties on your Kafka broker
+Restart your Kafka broker to apply the changes
+Start your application with skip.permission.check=true initially
+After first run, you can set skip.permission.check=false
+
+
+*/
+package com.java17.kafka.security.service;
+
+import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.config.ConfigResource.Type;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.stereotype.Service;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+
+@Service
+public class KafkaUserManager {
+
+    private final AdminClient adminClient;
+
+    @Autowired
+    public KafkaUserManager(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+                           @Value("${spring.kafka.security.protocol}") String securityProtocol,
+                           @Value("${spring.kafka.ssl.trust-store-location}") String trustStorePath,
+                           @Value("${spring.kafka.ssl.trust-store-password}") String trustStorePassword,
+                           @Value("${spring.kafka.properties.sasl.mechanism}") String saslMechanism,
+                           @Value("${kafka.admin.username}") String adminUsername,
+                         @Value("${kafka.admin.password}") String adminPassword) {
+                           
+        Properties props = new Properties();
+        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(AdminClientConfig.SECURITY_PROTOCOL_CONFIG, securityProtocol);
+        props.put("ssl.truststore.location", trustStorePath);
+        props.put("ssl.truststore.password", trustStorePassword);
+        props.put("sasl.mechanism", saslMechanism);
+        props.put("sasl.jaas.config", 
+                "org.apache.kafka.common.security.scram.ScramLoginModule required " +
+                "username=\"" + adminUsername + "\" password=\"" + adminPassword + "\";");
+        
+        this.adminClient = AdminClient.create(props);
+        try {
+            // Convert Spring resource path to physical file path
+            Resource resource = resourceLoader.getResource(trustStorePath);
+            File trustStoreFile = resource.getFile();
+            String absolutePath = trustStoreFile.getAbsolutePath();
+            
+            Properties props = new Properties();
+            props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+            props.put(AdminClientConfig.SECURITY_PROTOCOL_CONFIG, securityProtocol);
+            props.put("ssl.truststore.location", absolutePath);  // Use resolved path
+            props.put("ssl.truststore.password", trustStorePassword);
+            props.put("sasl.mechanism", saslMechanism);
+            props.put("sasl.jaas.config", 
+                    "org.apache.kafka.common.security.scram.ScramLoginModule required " +
+                    "username=\"" + adminUsername + "\" password=\"" + adminPassword + "\";");
+            
+            this.adminClient = AdminClient.create(props);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to initialize Kafka user manager: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Create or update a Kafka user with SCRAM-SHA-512 credentials
+     * Equivalent to: kafka-configs.sh --bootstrap-server localhost:9092 --alter --add-config 
+     * 'SCRAM-SHA-512=[password=password]' --entity-type users --entity-name username
+     */
+    public void createScramUser(String username, String password) throws ExecutionException, InterruptedException {
+        // Define the configuration resource for the user
+        ConfigResource userResource = new ConfigResource(Type.TOPIC, username);
+        
+        // Create the SCRAM config with the encoded password
+        String saslScramConfig = String.format("SCRAM-SHA-512=[password=%s]", password);
+        // Create the AlterConfigOp operation
+        Map<ConfigResource, Collection<AlterConfigOp>> alterConfigs = new HashMap<>();
+        AlterConfigOp configOp = new AlterConfigOp(
+                new ConfigEntry("SCRAM-SHA-512", "[password=" + password + "]"),
+                AlterConfigOp.OpType.SET
+        );
+        
+        alterConfigs.put(userResource, Collections.singletonList(configOp));
+        
+        // Execute the operation
+        AlterConfigsResult result = adminClient.incrementalAlterConfigs(alterConfigs);
+        result.all().get(); // Wait for completion
+        
+        System.out.println("Created SCRAM-SHA-512 credentials for user: " + username);
+    }
+    
+    public void close() {
+        if (adminClient != null) {
+            adminClient.close();
+        }
+    }
+}
+
+
+package com.java17.kafka.security.config;
+
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.common.TopicPartition;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.annotation.EnableKafka;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+import java.io.File;
+import java.io.IOException;
+import java.util.Properties;
+
+@Configuration
+@EnableKafka
+public class KafkaConfig {
+    public static final String NOTIFICATION_TOPIC = "notification-events";
+    public static final String NOTIFICATION_GROUP = "notification-group";
+    public static final String NOTIFICATION_DLQ = "notification-events-dlq";
+    @Value("${spring.kafka.consumer.retry.max-attempts:3}")
+    private int maxRetryAttempts;
+
+    @Bean
+    public DeadLetterPublishingRecoverer deadLetterPublishingRecoverer(
+            KafkaTemplate<String, String> template) {
+        return new DeadLetterPublishingRecoverer(template,
+                (record, ex) -> new TopicPartition(KafkaConfig.NOTIFICATION_DLQ, -1));
+    }
+
+    @Bean
+    public KafkaAclManager kafkaAclManager(
+            @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+            @Value("${spring.kafka.security.protocol}") String securityProtocol,
+            @Value("${spring.kafka.ssl.trust-store-password}") String trustStorePassword,
+            @Value("${spring.kafka.properties.sasl.mechanism}") String saslMechanism,
+            @Value("${kafka.admin.username}") String adminUsername,
+            @Value("${kafka.admin.password}") String adminPassword,
+            ResourceLoader resourceLoader,
+            @Value("${spring.kafka.ssl.trust-store-location}") String trustStoreLocation) throws IOException {
+            
+        Resource resource = resourceLoader.getResource(trustStoreLocation);
+        File trustStoreFile = resource.getFile();
+        String absolutePath = trustStoreFile.getAbsolutePath();
+        
+        Properties props = new Properties();
+        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(AdminClientConfig.SECURITY_PROTOCOL_CONFIG, securityProtocol);
+        props.put("ssl.truststore.location", absolutePath);
+        props.put("ssl.truststore.password", trustStorePassword);
+        props.put("sasl.mechanism", saslMechanism);
+        props.put("sasl.jaas.config", 
+                "org.apache.kafka.common.security.scram.ScramLoginModule required " +
+                "username=\"" + adminUsername + "\" password=\"" + adminPassword + "\";");
+        
+        return new KafkaAclManager(props);
+    }
+} 
+

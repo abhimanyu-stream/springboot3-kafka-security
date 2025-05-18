@@ -1,0 +1,278 @@
+
+-vm parameter
+-vmargs -javaagent:lombok.jar
+
+
+Key Generate
+[A]
+
+
+abhimanyu
+abhimanyu
+abhimanyu kumar
+development
+EY
+Pune
+MH
+IN
+now type yes to create keystore
+
+
+// below create keystore.jks file
+C:\Program Files\Java\jdk-17.0.5\bin>.\keytool --genkey --alias signjwt --keyalg RSA --keystore D:/keystore.jks --keysize 2048 --validity 365000
+
+Enter keystore password:abhimanyu
+Re-enter new password:abhimanyu
+What is your first and last name?
+  [Unknown]:  abhimanyu kumar
+What is the name of your organizational unit?
+  [Unknown]:  development
+What is the name of your organization?
+  [Unknown]:  EY
+What is the name of your City or Locality?
+  [Unknown]:  Pune
+What is the name of your State or Province?
+  [Unknown]:  MH
+What is the two-letter country code for this unit?
+  [Unknown]:  IN
+Is CN=abhimanyu kumar, OU=development, O=stream, L=Hazaribag, ST=Jharkhand, C=IN correct?
+  [no]:  yes
+
+Generating 2,048 bit RSA key pair and self-signed certificate (SHA256withRSA) with a validity of 365,000 days
+        for: CN=abhimanyu kumar, OU=development, O=stream, L=Hazaribag, ST=Jharkhand, C=IN
+
+C:\Program Files\Java\jdk-17.0.5\bin>
+
+
+
+[B]
+//convert into pkcs12
+Importing keystore D:/keystore.jks to D:/keystore.p12...
+Enter destination keystore password:abhimanyu
+Re-enter new password:abhimanyu
+Enter source keystore password:abhimanyu
+Entry for alias signjwt successfully imported.
+Import command completed:  1 entries successfully imported, 0 entries failed or cancelled
+
+
+.\keytool -importkeystore -srckeystore D:/keystore.jks -destkeystore D:/keystore.p12 -deststoretype pkcs12
+
+
+
+
+[C]
+
+C:\Program Files\Java\jdk-17.0.5\bin>openssl
+help:
+
+Standard commands
+asn1parse         ca                ciphers           cmp
+cms               crl               crl2pkcs7         dgst
+dhparam           dsa               dsaparam          ec
+ecparam           enc               engine            errstr
+fipsinstall       gendsa            genpkey           genrsa
+help              info              kdf               list
+mac               nseq              ocsp              passwd
+pkcs12            pkcs7             pkcs8             pkey
+pkeyparam         pkeyutl           prime             rand
+rehash            req               rsa               rsautl
+s_client          s_server          s_time            sess_id
+smime             speed             spkac             srp
+storeutl          ts                verify            version
+x509
+
+Message Digest commands (see the `dgst' command for more details)
+blake2b512        blake2s256        md4               md5
+mdc2              rmd160            sha1              sha224
+sha256            sha3-224          sha3-256          sha3-384
+sha3-512          sha384            sha512            sha512-224
+sha512-256        shake128          shake256          sm3
+
+Cipher commands (see the `enc' command for more details)
+aes-128-cbc       aes-128-ecb       aes-192-cbc       aes-192-ecb
+aes-256-cbc       aes-256-ecb       aria-128-cbc      aria-128-cfb
+aria-128-cfb1     aria-128-cfb8     aria-128-ctr      aria-128-ecb
+aria-128-ofb      aria-192-cbc      aria-192-cfb      aria-192-cfb1
+aria-192-cfb8     aria-192-ctr      aria-192-ecb      aria-192-ofb
+aria-256-cbc      aria-256-cfb      aria-256-cfb1     aria-256-cfb8
+aria-256-ctr      aria-256-ecb      aria-256-ofb      base64
+bf                bf-cbc            bf-cfb            bf-ecb
+bf-ofb            camellia-128-cbc  camellia-128-ecb  camellia-192-cbc
+camellia-192-ecb  camellia-256-cbc  camellia-256-ecb  cast
+cast-cbc          cast5-cbc         cast5-cfb         cast5-ecb
+cast5-ofb         des               des-cbc           des-cfb
+des-ecb           des-ede           des-ede-cbc       des-ede-cfb
+des-ede-ofb       des-ede3          des-ede3-cbc      des-ede3-cfb
+des-ede3-ofb      des-ofb           des3              desx
+idea              idea-cbc          idea-cfb          idea-ecb
+idea-ofb          rc2               rc2-40-cbc        rc2-64-cbc
+rc2-cbc           rc2-cfb           rc2-ecb           rc2-ofb
+rc4               rc4-40            rc5               rc5-cbc
+rc5-cfb           rc5-ecb           rc5-ofb           seed
+seed-cbc          seed-cfb          seed-ecb          seed-ofb
+sm4-cbc           sm4-cfb           sm4-ctr           sm4-ecb
+sm4-ofb           zlib
+
+Get PRIVATE KEY
+
+
+C:\Program Files\Java\jdk-17.0.5\bin>openssl pkcs12 -in D:\keystore.p12 -nocerts -nodes
+Enter Import Password:abhimanyu
+Bag Attributes
+    friendlyName: signjwt
+    localKeyID: 54 69 6D 65 20 31 37 32 34 39 34 32 32 31 38 36 39 34
+Key Attributes: <No Attributes>
+-----BEGIN PRIVATE KEY-----
+46SxCfwEzhIA2/gGtOff4LsfJ7I4nc0a8dUKSIVF/qEatbROH4/PeZ2e/VrS/0lN
+e6qvVDci6wKBgQCqpVcEYbi4ttvfnpSXU2g64cARH4KMtXtFoIQTd9pS7mI2kpp3
+EkCOIsgY/j01HZYt0XYxR+CVrQkVki5Pc63kbvwfbO0CAz5doiwIoBP6JGku8Buu
+402Yco/AFpNh+Q72ZawkQk7eDxp3+4PprDInPIUptKedT20kdyBat1beyQKBgDVE
+xzv4Q/+bYYJ+FvE/rZwR8duA+QkAzBJvBnwYPXMP4Wsd3Wfk2VXmaImZqoAFBCrm
+KXqkPzOoL92XHKfyFlrOOP4V9aydhrraQXlrd3XKZ1SaFM+zsJl/5gNCH64NakZ4
+Vt9BR3lLXE/7J9FqN/LewurzDXcLYe7H0UZbY4xDAoGBAIcl9+ll0Feav3kBBxhy
+eT9NYDV0DUUHoD8mZ2iuMcEtQsI3KN2gx947s8QSMOgY/AMUDIP3VKgxNtJNmWNJ
+Nq04uihB2BJicEdDoQvh2gvm66FMmBCJbqBdphFDdf/te3ZZht1RPLliHrIOS6Gg
+GfF4qf6isA/GMps0H3H0rufH
+-----END PRIVATE KEY-----
+
+C:\Program Files\Java\jdk-17.0.5\bin>
+
+
+[D]
+How do I extract certificates from a keystore using openssl?
+pkcs12 -in D:\keystore.p12 -nokeys
+
+Get CERTIFICATE
+
+C:\Program Files\Java\jdk-17.0.5\bin>openssl pkcs12 -in D:\keystore.p12 -nokeys
+Enter Import Password:abhimanyu
+Bag Attributes
+    friendlyName: signjwt
+    localKeyID: 54 69 6D 65 20 31 37 32 34 39 34 32 32 31 38 36 39 34
+subject=C=IN, ST=MH, L=Pune, O=EY, OU=development, CN=abhimanyu kumar
+issuer=C=IN, ST=MH, L=Pune, O=EY, OU=development, CN=abhimanyu kumar
+-----BEGIN CERTIFICATE-----
+MIIDcjCCAlqgAwIBAgIJAOSymHtJcYMAMA0GCSqGSIb3DQEBCwUAMGYxCzAJBgNV
+BAYTAklOMQswCQYDVQQIEwJNSDENMAsGA1UEBxMEUHVuZTELMAkGA1UEChMCRVkx
+FDASBgNVBAsTC2RldmVsb3BtZW50MRgwFgYDVQQDEw9hYmhpbWFueXUga3VtYXIw
+5284iSoxPWwYIw5DbwvDXO2G6nBDLZFa0UfxqVhtUAVQFQC+Y2uoDM3odkWhwjHk
+f2a6eWFZ/PWhZ6PHhMNDbxq4qKdMaOLovCRAn4B4RkhMUDYXrUiETlS/nD/b/zlb
+094BoK9WRY0COc6YM+40ahv+2y9OXOdrJ/RyIKZHSEgXVP29D0bGC78/AgMBAAGj
+ITAfMB0GA1UdDgQWBBRZoDX0l2tq8cSDLxrLTROPXsLL+jANBgkqhkiG9w0BAQsF
+AAOCAQEARvmDaefDZHHlPQKJ8SW4NspW3Nix2BCIFl/yCNLmIxLQttVwslEVUfV/
+ozFictKO8dfD+WRUlf64/mUEfdJDKNMi2ul6UOvE+SXxBxpRYyNSo2yb0zMxO9Dk
+v0ZRM5NEgsAJM8jk5XH0ff4nZDjGQaeEE6T70TJLpisgjKgvBtrRQ3YGXbYd0wck
+qmoNRqRyeXmr4mOKhQ4FxbNA+xLay98LBE4Gmvchbd4ov+8AJBABhtwowKHuOBCM
+ZjWqgVOs8CxYcMSLmJ5q0FzoVC1h06i0uuGU5eQESqCUHSO34DTIJoy68qxq3msB
+UGAUnfpn1T9HctCdvBS2yInPbxOWjg==
+-----END CERTIFICATE-----
+
+
+C:\Program Files\Java\jdk-17.0.5\bin>
+
+[E]
+create private key
+C:\Program Files\Java\jdk-17.0.5\bin>openssl pkcs12 -in D:\keystore.p12 -out D:\keystore.key.pem -nocerts -nodes
+Enter Import Password:abhimanyu
+
+[F]
+create certificate
+
+C:\Program Files\Java\jdk-17.0.5\bin>openssl pkcs12 -in D:\keystore.p12 -out D:\keystore.crt.pem -clcerts -nokeys
+Enter Import Password:abhimanyu
+
+[G]
+create Public key from Private Key
+
+openssl rsa -pubout -in  D:\keystore.key.pem -out D:\public.key.pem
+
+[H]
+
+openssl pkcs12 -in D:\keystore.p12 -clcerts -nokeys -out D:\public-certificate.pem
+
+
+
+
+ Notes:-
+
+ Navigate to the directory where your keystore.p12 file is located (replace keystore.p12 with the actual filename).
+ Run the following command to extract the public certificate (in PEM format) from the PKCS#12 keystore:
+ openssl pkcs12 -in keystore.p12 -clcerts -nokeys -out public-certificate.pem
+
+ -in keystore.p12: Specifies the input PKCS#12 keystore file.
+ -clcerts: Only extracts the client certificate (public certificate) from the keystore.
+ -nokeys: Excludes private keys from the output.
+ -out public-certificate.pem: Writes the public certificate to a file named public-certificate.pem.
+ The resulting public-certificate.pem file will contain the public certificate associated with the private key stored in the PKCS#12 keystore.
+
+
+
+
+-----
+
+keytool -genkey -alias jwtalias -keystore D:\keystore.p12 -storetype PKCS12 -keyalg RSA -storepass abhimanyupassword -validity 365 -keysize 2048
+
+
+PKCS (Public Key Cryptography Standards) and how they relate to Java keystores.
+
+PKCS Overview:
+PKCS stands for Public Key Cryptography Standards. These are a set of specifications and standards developed by RSA Security for various cryptographic operations involving public key cryptography.
+PKCS defines formats for storing cryptographic objects such as keys, certificates, and other related data.
+One of the widely used formats is PKCS#12, which specifies a standard for storing private keys, certificates, and other related information in a single encrypted file.
+PKCS#12 Keystore (PFX):
+A PKCS#12 keystore (also known as a PFX file) is a container format that can hold multiple cryptographic objects:
+Private keys: Encrypted private keys associated with certificates.
+Certificates: X.509 certificates (both public and private).
+Chain of trust: Certificates forming a chain of trust (including intermediate and root certificates).
+PKCS#12 files are typically password-protected and can be used for secure storage and transport of sensitive cryptographic material.
+The extension for PKCS#12 files is usually .p12 or .pfx.
+Java Keystore Types:
+In Java, there are two main types of keystores:
+JKS (Java KeyStore): This is the default keystore format used by Java prior to Java 9. It’s specific to Java and is based on a proprietary format. JKS files store keys and certificates.
+PKCS#12 (PFX): Since Java 9, the default keystore format has been PKCS#12. Unlike JKS, PKCS#12 is a standardized and language-neutral way of storing encrypted private keys and certificates. It’s widely supported across different platforms and tools.
+Using PKCS#12 Keystore in Java:
+To create a PKCS#12 keystore in Java using the keytool utility, you can run a command like this:
+keytool -genkey -alias myalias -keystore keystore.p12 -storetype PKCS12 -keyalg RSA -storepass mypassword -validity 365 -keysize 2048
+
+-genkey: Generate a new key pair.
+-alias myalias: Specify an alias for the key pair.
+-keystore keystore.p12: Specify the output keystore file.
+-storetype PKCS12: Set the keystore type to PKCS#12.
+-keyalg RSA: Use RSA as the key algorithm.
+-storepass mypassword: Set the keystore password.
+-validity 365: Set the validity period for the certificate (in days).
+-keysize 2048: Set the key size (adjust as needed).
+Using PKCS#11 Keystore (Hardware Security Modules):
+Apart from PKCS#12, there’s another keystore type called PKCS#11.
+PKCS#11 keystore is designed for hardware security modules (HSMs). It doesn’t actually store keys but provides a set of classes to communicate with the underlying HSM.
+Applications can use the PKCS#11 provider to access native PKCS#11 tokens (such as smartcards or hardware cryptographic accelerators) directly from Java.
+SunPKCS11 Provider:
+The SunPKCS11 provider acts as a bridge between the Java Cryptography Architecture (JCA) and the native PKCS#11 cryptographic API.
+It allows Java applications to use PKCS#11 tokens without modification. The provider translates calls between JCA/JCE APIs and the PKCS#11 API.
+When accessing a PKCS#11 token as a keystore via the java.security.KeyStore class, you can supply the PIN in the password input parameter to the load method. The PIN is then used by the SunPKCS11 provider for logging into the token
+
+
+
+
+Let’s dive into PKCE (Proof Key for Code Exchange) and PKCS (Public Key Cryptography Standards) in the context of Java and keystore management. 😊
+
+PKCE (Proof Key for Code Exchange):
+PKCE is an extension to the OAuth protocol, primarily designed for public clients (such as Single Page Applications or mobile apps). It enhances security during the Authorization Code Grant flow by mitigating certain attacks.
+When a client (like a mobile app) requests an authorization code, it generates a random secret (the “code verifier”) and transforms it into a hash (the “code challenge”). The server stores the code challenge.
+Later, when exchanging the authorization code for an access token, the client provides the original code verifier. The server verifies that the code verifier matches the stored code challenge.
+This mechanism ensures that even if an attacker intercepts the authorization code, they cannot exchange it for an access token without the original code verifier1.
+PKCS#11 and Java Keystore:
+PKCS#11 is a standard that defines native programming interfaces for cryptographic tokens (e.g., hardware cryptographic accelerators, smartcards). It’s produced by RSA Security.
+In Java, you can use the SunPKCS11 provider to bridge between the Java Cryptography Architecture (JCA) and native PKCS#11 tokens. The SunPKCS11 provider translates calls between the two.
+To access a PKCS#11 token as a keystore via the java.security.KeyStore class, you can supply the PIN (Personal Identification Number) as the password input parameter to the load method. The SunPKCS11 provider then uses this PIN for logging into the token2.
+Additionally, you can import a PKCS#12 file (usually containing a private key and certificate) into a Java keystore using the keytool command. For example:
+keytool -importkeystore -v -srckeystore cert_file.p12 -srcstoretype PKCS12 -destkeystore newkeystore.jks -deststoretype JCEKS
+
+Java Keystore Types:
+Java supports different keystore types, including JKS (Java Keystore), JCEKS (Java Cryptography Extension Keystore), and PKCS#12.
+JKS is the default type, but PKCS#12 is commonly used for interoperability with other systems.
+To convert a PKCS#12 file into a JKS keystore, you can use the keytool command or other tools like OpenSSL34.
+
+
+
+
